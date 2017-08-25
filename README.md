@@ -1,54 +1,266 @@
-[//]: # (Image References)
-[image_0]: ./misc/rover_image.jpg
-[![Udacity - Robotics NanoDegree Program](https://s3-us-west-1.amazonaws.com/udacity-robotics/Extra+Images/RoboND_flag.png)](https://www.udacity.com/robotics)
-# Search and Sample Return Project
+## README
 
+### Technical Report for Computer Vision Based Search and Sample Return
 
-![alt text][image_0] 
+<img src="writeup_images/00-rover-demo.jpg" width="100%" alt="Search and Sample Return using Autonomous Rover" />
 
-This project is modeled after the [NASA sample return challenge](https://www.nasa.gov/directorates/spacetech/centennial_challenges/sample_return_robot/index.html) and it will give you first hand experience with the three essential elements of robotics, which are perception, decision making and actuation.  You will carry out this project in a simulator environment built with the Unity game engine.  
+---
 
-## The Simulator
-The first step is to download the simulator build that's appropriate for your operating system.  Here are the links for [Linux](https://s3-us-west-1.amazonaws.com/udacity-robotics/Rover+Unity+Sims/Linux_Roversim.zip), [Mac](	https://s3-us-west-1.amazonaws.com/udacity-robotics/Rover+Unity+Sims/Mac_Roversim.zip), or [Windows](https://s3-us-west-1.amazonaws.com/udacity-robotics/Rover+Unity+Sims/Windows_Roversim.zip).  
+**The goals of this project are the following:**  
 
-You can test out the simulator by opening it up and choosing "Training Mode".  Use the mouse or keyboard to navigate around the environment and see how it looks.
+**Calibration and Mapping**  
 
-## Dependencies
-You'll need Python 3 and Jupyter Notebooks installed to do this project.  The best way to get setup with these if you are not already is to use Anaconda following along with the [RoboND-Python-Starterkit](https://github.com/ryan-keenan/RoboND-Python-Starterkit). 
+* Download the simulator and take data in "Training Mode"
+* Implement functions to detect obstacles and samples of interest (golden rocks)
+* Fill in the `process_frame()` function with the appropriate image processing steps (color threshold, perspective transform etc.) to get from raw images to a map.  The output frame you create in this step should demonstrate that your mapping pipeline works.
+* Use `moviepy` to process the images in your saved dataset with the `process_frame()` function.  Include the video you produce as part of your submission.
+* Test out the workflow in the Jupyter Notebook provided
 
+**Autonomous Navigation**
 
-Here is a great link for learning more about [Anaconda and Jupyter Notebooks](https://classroom.udacity.com/courses/ud1111)
+* Fill in the `perception_step()` function within the `perception.py` script with the appropriate image processing functions to create a map and update `Rover()` data (similar to what you did with `process_image()` in the notebook).
+* Fill in the `decision_step()` function within the `decision.py` script with conditional statements that take into consideration the outputs of the `perception_step()` in deciding how to issue throttle, brake and steering commands.
+* Iterate on your perception and decision function until your rover does a reasonable (need to define metric) job of navigating and mapping.  
 
-## Recording Data
-I've saved some test data for you in the folder called `test_dataset`.  In that folder you'll find a csv file with the output data for steering, throttle position etc. and the pathnames to the images recorded in each run.  I've also saved a few images in the folder called `calibration_images` to do some of the initial calibration steps with.  
+---
 
-The first step of this project is to record data on your own.  To do this, you should first create a new folder to store the image data in.  Then launch the simulator and choose "Training Mode" then hit "r".  Navigate to the directory you want to store data in, select it, and then drive around collecting data.  Hit "r" again to stop data collection.
+### Calibration and Mapping
 
-## Data Analysis
-Included in the IPython notebook called `Rover_Project_Test_Notebook.ipynb` are the functions from the lesson for performing the various steps of this project.  The notebook should function as is without need for modification at this point.  To see what's in the notebook and execute the code there, start the jupyter notebook server at the command line like this:
+#### 1. Describe and identify where in your code how you implement functions to identify obstacle and rock sample segmentation.
 
-```sh
-jupyter notebook
+The code for obstacle and rock sample segmentation is contained in the module [search_and_sample_return.binarizers](code/search_and_sample_return/binarizers/binarize.py).
+
+The whole procedure is wrapped up as a sklearn Transformer implementation as follows:
+
+```python
+class Binarizer(TransformerMixin):
+    """ Transform input image to thresholded binary image based on color space filtering
+    """
+    def __init__(
+        self,
+        thresholds,
+        morphology_kernel_size
+    ):
+        # Thresholds for image binarization:
+        self.thresholds = thresholds
+        self.morphology_kernel = np.ones(
+            (morphology_kernel_size,morphology_kernel_size),
+            np.uint8
+        )
+
+    def transform(self, X):
+        """ Binarize input image
+        """
+        # Convert to HSV:
+        YUV = cv2.cvtColor(
+            X, cv2.COLOR_BGR2YUV
+        )
+
+        # Get mask for each channel component:
+        masks = [get_channel_mask(channel_component, threshold) for (channel_component, threshold) in zip(cv2.split(YUV), self.thresholds)]
+
+        # Generate final mask:
+        mask = masks[0] & masks[1] & masks[2]
+
+        # morphological filtering:
+        mask = cv2.morphologyEx(
+            mask,
+            cv2.MORPH_CLOSE,
+            self.morphology_kernel,
+            iterations=1
+        )
+        mask = cv2.morphologyEx(
+            mask,
+            cv2.MORPH_OPEN,
+            self.morphology_kernel,
+            iterations=2
+        )
+
+        return mask
+
+    def fit(self, X, y=None):
+        """ Do nothing
+        """
+        return self
+
+    def set_params(self, **kwargs):
+        self.__dict__.update(kwargs)
 ```
 
-This command will bring up a browser window in the current directory where you can navigate to wherever `Rover_Project_Test_Notebook.ipynb` is and select it.  Run the cells in the notebook from top to bottom to see the various data analysis steps.  
+The whole segmentation process goes as follows:
 
-The last two cells in the notebook are for running the analysis on a folder of test images to create a map of the simulator environment and write the output to a video.  These cells should run as-is and save a video called `test_mapping.mp4` to the `output` folder.  This should give you an idea of how to go about modifying the `process_image()` function to perform mapping on your data.  
+1. The image is converted to YUV color space
+2. Objects of interest are segmented through color space filtering
+3. The raw segmentation is further smoothed through combined morphological operations: first comes close with iteration 1, then comes open with iteration 2
 
-## Navigating Autonomously
-The file called `drive_rover.py` is what you will use to navigate the environment in autonomous mode.  This script calls functions from within `perception.py` and `decision.py`.  The functions defined in the IPython notebook are all included in`perception.py` and it's your job to fill in the function called `perception_step()` with the appropriate processing steps and update the rover map. `decision.py` includes another function called `decision_step()`, which includes an example of a conditional statement you could use to navigate autonomously.  Here you should implement other conditionals to make driving decisions based on the rover's state and the results of the `perception_step()` analysis.
+The thresholds for color space filtering are determined through [3D color space histogram analysis](code/color-threshold-analysis.py)
 
-`drive_rover.py` should work as is if you have all the required Python packages installed. Call it at the command line like this: 
+The thresholds for ground / obstacle and rock sample are the following:
 
-```sh
-python drive_rover.py
-```  
+```json
+	"binarizer_ground_thresholds": [
+		[160, 255],
+		[128, 142],
+		[112, 128]
+	],
+	"binarizer_ground_morphology_kernel_size": 7
+```
 
-Then launch the simulator and choose "Autonomous Mode".  The rover should drive itself now!  It doesn't drive that well yet, but it's your job to make it better!  
+```json
+	"binarizer_rock_thresholds": [
+		[ 75, 150],
+		[145, 170],
+		[ 20,  80]
+	],
+	"binarizer_rock_morphology_kernel_size": 5
+```
 
-**Note: running the simulator with different choices of resolution and graphics quality may produce different results!  Make a note of your simulator settings in your writeup when you submit the project.**
+Here is one sample output for ground & obstacle segmentation:
 
-### Project Walkthrough
-If you're struggling to get started on this project, or just want some help getting your code up to the minimum standards for a passing submission, we've recorded a walkthrough of the basic implementation for you but **spoiler alert: this [Project Walkthrough Video](https://www.youtube.com/watch?v=oJA6QHDPdQw) contains a basic solution to the project!**.
+<img src="writeup_images/01-segmentation-demo--ground-and-obstacle.png" width="100%" alt="Ground & Obstacle Segmentation" />
+
+Here is another sample output for rock sample segmentation:
+
+<img src="writeup_images/01-segmentation-demo--rock.png" width="100%" alt="Rock Sample Segmentation" />
+
+#### 2. Describe and identify in your code how you implemented the video frame processor and how you created a worldmap. Give the link to your sample video output for mapping.
+
+The whole procedure is contained in the Jupyter notebook [Rover_Project_Test_Notebook.ipynb](code/Rover_Project_Test_Notebook.ipynb).
+
+Below is the code snippet:
+
+```python
+# Static variable decorator:
+def static_vars(**kwargs):
+    def decorate(func):
+        for k in kwargs:
+            setattr(func, k, kwargs[k])
+        return func
+    return decorate
+
+# Frame processor:
+@static_vars(
+    world_map = rover_states.world_map,
+    frame_index = 0
+)
+def process_frame(frame):
+    # Format input:
+    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+    # Rover state:
+    (x_trans, y_trans, yaw) = rover_states[process_frame.frame_index]
+
+    # Segmented ground:
+    ground = transformer.transform(
+        binarizer_ground.transform(frame)
+    )
+    # Segmented obstacle:
+    obstacle = (ground == 0).astype(
+        np.int
+    )
+    obstacle[rover_states.rover_view == 0] = 0
+    # Segmented rock:
+    rock = transformer.transform(
+        binarizer_rock.transform(frame)
+    )
+
+    # Initialize coordinate transform:
+    yaw = np.pi / 180.0 * yaw
+    scales = (conf.scale, conf.scale)
+    translations= (x_trans, y_trans)
+
+    # Extract coordinates:
+    coords = {
+        "ground": {},
+        "obstacle": {},
+        "rock": {}    
+    }
+    for obj_name, obj_in_pixel in zip(
+        ("ground", "obstacle", "rock"),
+        (ground, obstacle, rock),
+    ):
+        coords[obj_name]["rover"] = rover_coord_mapper.transform(obj_in_pixel)
+        coords[obj_name]["polar"] = rover_polar_mapper.transform(
+            coords[obj_name]["rover"]
+        )
+        coords[obj_name]["world"] = world_coord_mapper.transform(
+            coords[obj_name]["rover"],
+            yaw,
+            scales,
+            translations
+        )
+
+    # Bird eye view:
+    bird_eye_view = bird_eye_view_painter.transform(
+        coords["ground"]["rover"],
+        coords["obstacle"]["rover"],
+        coords["rock"]["rover"],
+        np.mean(coords["ground"]["polar"][1])
+    )
+
+    # World map inpainting:
+    process_frame.world_map = world_map_painter.transform(
+        process_frame.world_map,
+        coords["ground"]["world"],
+        coords["obstacle"]["world"],
+        coords["rock"]["world"]
+    )
+
+    # Final output:
+    processed = np.zeros(
+        (
+            frame.shape[0] + process_frame.world_map.shape[0],
+            2*frame.shape[1],
+            3
+        ),
+        dtype=np.uint8
+    )
+    # Input frame:
+    processed[
+        0:frame.shape[0],
+        0:frame.shape[1],
+        :
+    ] = frame
+    # Bird eye view:
+    processed[
+        0:frame.shape[0],
+        frame.shape[1]:,
+        :
+    ] = bird_eye_view
+    # Mapping:
+    processed[
+        frame.shape[0]:,
+        frame.shape[1] - process_frame.world_map.shape[1] // 2:frame.shape[1] + process_frame.world_map.shape[1] // 2,
+        :
+    ] = np.flipud(process_frame.world_map)    
+
+    # Update index:
+    process_frame.frame_index += 1
+
+    return cv2.cvtColor(processed, cv2.COLOR_BGR2RGB)
+```
+
+The frame processing procedure goes as follows:
+
+1. First, ground, obstacle and rock sample are segmented using color-space filtering described in the above selection
+2. Then all the segmented objects are mapped to bird-eye view through perspective transform
+3. The bird-eye view containing ground, obstacle, rock sample and heading direction is created through [search_and_sample_return.painters.BirdEyeViewPainter](code/search_and_sample_return/painters/paint.py) using object coordinates in rover frame
+4. The map inpainting containing ground truth map, perceived ground, obstacle and rock sample is created through
+[search_and_sample_return.painters.WorldMapPainter](code/search_and_sample_return/painters/paint.py) using object coordinates in world frame
+5. The mosaic image containing raw front camera view, bird eye view and world map inpainting is returned as the final output
+
+One sample video output can be reached through this link [Real-Time Mapping Demo](output_videos)
+
+---
+
+### Autonomous Navigation and Mapping
+
+#### 1. Describe how you implemented the perception_step() and decision_step() functions.
 
 
+
+#### 2. Launching in autonomous mode your rover can navigate and map autonomously.  Explain your results and how you might improve them in your writeup.  
+
+**Note: running the simulator with different choices of resolution and graphics quality may produce different results, particularly on different machines!  Set simulator settings (resolution and graphics quality set on launch) and frames per second (FPS output to terminal by `drive_rover.py`) exactly as follows to make sure the procedure is reproducible.**
+
+Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  

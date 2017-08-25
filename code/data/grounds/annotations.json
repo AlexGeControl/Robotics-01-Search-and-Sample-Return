@@ -1,0 +1,41 @@
+[
+    {
+        "annotations": [
+            {
+                "class": "rect",
+                "height": 59.21759290473355,
+                "width": 310.00053153140635,
+                "x": 6.421184772802432,
+                "y": 96.31777159203648
+            }
+        ],
+        "class": "image",
+        "filename": "data/grounds/ground_01.jpg"
+    },
+    {
+        "annotations": [
+            {
+                "class": "rect",
+                "height": 58.860860417355624,
+                "width": 290.3802447256211,
+                "x": 15.339496957250255,
+                "y": 97.38796905417023
+            }
+        ],
+        "class": "image",
+        "filename": "data/grounds/ground_02.jpg"
+    },
+    {
+        "annotations": [
+            {
+                "class": "rect",
+                "height": 58.86086041735564,
+                "width": 290.38024472562114,
+                "x": 23.901076654320164,
+                "y": 95.24757412990274
+            }
+        ],
+        "class": "image",
+        "filename": "data/grounds/ground_03.jpg"
+    }
+]

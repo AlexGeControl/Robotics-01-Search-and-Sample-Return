@@ -1,0 +1,28 @@
+[
+    {
+        "annotations": [
+            {
+                "class": "rect",
+                "height": 16.7872344428758,
+                "width": 17.87028182628714,
+                "x": 152.07790342067602,
+                "y": 93.32258287061069
+            }
+        ],
+        "class": "image",
+        "filename": "data/rocks/rock_01.jpg"
+    },
+    {
+        "annotations": [
+            {
+                "class": "rect",
+                "height": 14.98215547052358,
+                "width": 17.78002787766954,
+                "x": 152.25841131791125,
+                "y": 96.12045527775665
+            }
+        ],
+        "class": "image",
+        "filename": "data/rocks/rock_02.jpg"
+    }
+]

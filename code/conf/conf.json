@@ -1,0 +1,56 @@
+{
+	"frame_size": [320, 160],
+	"frame_view": [
+		[  0,   0],
+		[319,   0],
+		[319,  46],
+		[165, 154],
+		[155, 154],
+		[  0,  46]	
+	],
+
+	"scale": 10,
+
+	"world_map": "data/map.png",
+	"world_size": [200, 200],
+
+	"binarizer_ground_thresholds": [
+		[160, 255],
+		[128, 142],
+		[112, 128]
+	],
+	"binarizer_ground_morphology_kernel_size": 7,
+	"binarizer_ground_pickle": "output/binarizer-ground-deployment.pickle",
+	"binarizer_ground_test_images": "data/grounds/*.jpg",
+	"binarizer_rock_thresholds": [
+		[ 15, 150],
+		[145, 170],
+		[ 20,  80]
+	],
+	"binarizer_rock_morphology_kernel_size": 5,
+	"binarizer_rock_pickle": "output/binarizer-rock-deployment.pickle",
+	"binarizer_rock_test_images": "data/rocks/*.jpg",
+
+	"perspective_transformer_source": [
+		[119.55,  96.55],
+		[200.60,  96.55],
+		[301.65, 140.60],
+		[ 15.45, 140.60]
+	],
+	"perspective_transformer_destination": [
+		[155, 144],
+		[165, 144],
+		[165, 154],
+		[155, 154]
+	],
+	"perspective_transformer_pickle": "output/binarizer-deployment.pickle",
+	"perspective_transformer_test_images": "data/grounds/*.jpg",
+
+	"rover_coord_mapper_pickle": "output/rover-coord-mapper-deployment.pickle",
+	"rover_polar_mapper_pickle": "output/rover-polar-mapper-deployment.pickle",
+	"world_coord_mapper_pickle": "output/world-coord-mapper-deployment.pickle",
+
+	"test_dataset_images": "../test_dataset/IMG/*.jpg",
+	"test_dataset_states": "../test_dataset/robot_log.csv",
+	"test_dataset_output_video": "output_videos/test_mapping.mp4"
+}
