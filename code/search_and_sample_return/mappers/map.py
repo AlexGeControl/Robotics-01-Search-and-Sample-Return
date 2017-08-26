@@ -15,7 +15,7 @@ class RoverCoordMapper:
     def transform(self, X):
         # Unpack pixel coordinates:
         y_pixel, x_pixel = X.nonzero()
-        
+
         # Map to rover coordinate:
         x_rover = (self.H - y_pixel).astype(np.float)
         y_rover = (self.W / 2 - x_pixel).astype(np.float)
@@ -78,8 +78,8 @@ class WorldCoordMapper:
         y_world = (y_world / y_scale) + y_trans
 
         # Clip:
-        x_world = np.int_(np.clip(x_world, 0, self.W))
-        y_world = np.int_(np.clip(y_world, 0, self.H))
+        x_world = np.int_(np.clip(x_world, 0, self.W-1))
+        y_world = np.int_(np.clip(y_world, 0, self.H-1))
 
         return (x_world, y_world)
 

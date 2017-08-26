@@ -6,7 +6,7 @@
 		[319,  46],
 		[165, 154],
 		[155, 154],
-		[  0,  46]	
+		[  0,  46]
 	],
 
 	"scale": 10,
@@ -14,28 +14,33 @@
 	"world_map": "data/map.png",
 	"world_size": [200, 200],
 
+	"binarizer_ground_color_space": "RGB",
 	"binarizer_ground_thresholds": [
 		[160, 255],
-		[128, 142],
-		[112, 128]
+		[160, 255],
+		[160, 255]
 	],
-	"binarizer_ground_morphology_kernel_size": 7,
+	"binarizer_ground_morphology_kernel_size": 5,
+	"binarizer_ground_morphology_iters": -1,
 	"binarizer_ground_pickle": "output/binarizer-ground-deployment.pickle",
 	"binarizer_ground_test_images": "data/grounds/*.jpg",
+
+	"binarizer_rock_color_space": "YUV",
 	"binarizer_rock_thresholds": [
-		[ 15, 150],
-		[145, 170],
+		[  0, 255],
+		[128, 255],
 		[ 20,  80]
 	],
-	"binarizer_rock_morphology_kernel_size": 5,
+	"binarizer_rock_morphology_kernel_size": 7,
+	"binarizer_rock_morphology_iters": 1,
 	"binarizer_rock_pickle": "output/binarizer-rock-deployment.pickle",
 	"binarizer_rock_test_images": "data/rocks/*.jpg",
 
 	"perspective_transformer_source": [
-		[119.55,  96.55],
-		[200.60,  96.55],
-		[301.65, 140.60],
-		[ 15.45, 140.60]
+		[118,  96],
+		[200,  96],
+		[301, 140],
+		[ 14, 140]
 	],
 	"perspective_transformer_destination": [
 		[155, 144],
@@ -52,5 +57,8 @@
 
 	"test_dataset_images": "../test_dataset/IMG/*.jpg",
 	"test_dataset_states": "../test_dataset/robot_log.csv",
-	"test_dataset_output_video": "output_videos/test_mapping.mp4"
+	"test_dataset_output_video": "output_videos/test_mapping.mp4",
+
+	"navigation_demo_images": "navigation_demo/*.jpg",
+	"navigation_demo_output_video": "output_videos/navigation_demo.mp4"
 }

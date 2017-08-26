@@ -38,43 +38,64 @@ class Binarizer(TransformerMixin):
     """
     def __init__(
         self,
+        color_space,
         thresholds,
-        morphology_kernel_size
+        morphology_kernel_size,
+        morphology_iters = 0
     ):
+        if color_space == "RGB":
+            self.conversion = cv2.COLOR_BGR2RGB
+        else:
+            self.conversion = cv2.COLOR_BGR2YUV
+
         # Thresholds for image binarization:
         self.thresholds = thresholds
+
         self.morphology_kernel = np.ones(
             (morphology_kernel_size,morphology_kernel_size),
             np.uint8
         )
+        self.morphology_iters = morphology_iters
 
     def transform(self, X):
         """ Binarize input image
         """
         # Convert to HSV:
-        YUV = cv2.cvtColor(
-            X, cv2.COLOR_BGR2YUV
+        converted = cv2.cvtColor(
+            X, self.conversion
         )
 
         # Get mask for each channel component:
-        masks = [get_channel_mask(channel_component, threshold) for (channel_component, threshold) in zip(cv2.split(YUV), self.thresholds)]
+        masks = [get_channel_mask(channel_component, threshold) for (channel_component, threshold) in zip(cv2.split(converted), self.thresholds)]
 
         # Generate final mask:
         mask = masks[0] & masks[1] & masks[2]
 
         # morphological filtering:
-        mask = cv2.morphologyEx(
-            mask,
-            cv2.MORPH_CLOSE,
-            self.morphology_kernel,
-            iterations=1
-        )
-        mask = cv2.morphologyEx(
-            mask,
-            cv2.MORPH_OPEN,
-            self.morphology_kernel,
-            iterations=2
-        )
+        if self.morphology_iters > 0:
+            for _ in range(self.morphology_iters):
+                mask = cv2.morphologyEx(
+                    mask,
+                    cv2.MORPH_CLOSE,
+                    self.morphology_kernel
+                )
+                mask = cv2.morphologyEx(
+                    mask,
+                    cv2.MORPH_OPEN,
+                    self.morphology_kernel
+                )
+        elif self.morphology_iters < 0:
+            for _ in range(-self.morphology_iters):
+                mask = cv2.morphologyEx(
+                    mask,
+                    cv2.MORPH_OPEN,
+                    self.morphology_kernel
+                )
+                mask = cv2.morphologyEx(
+                    mask,
+                    cv2.MORPH_CLOSE,
+                    self.morphology_kernel
+                )
 
         return mask
 
@@ -89,30 +110,34 @@ class Binarizer(TransformerMixin):
 
 The whole segmentation process goes as follows:
 
-1. The image is converted to YUV color space
+1. The image is converted to the specified color space
 2. Objects of interest are segmented through color space filtering
 3. The raw segmentation is further smoothed through combined morphological operations: first comes close with iteration 1, then comes open with iteration 2
 
 The thresholds for color space filtering are determined through [3D color space histogram analysis](code/color-threshold-analysis.py)
 
-The thresholds for ground / obstacle and rock sample are the following:
+The parameters for ground / obstacle and rock sample are the following:
 
 ```json
-	"binarizer_ground_thresholds": [
-		[160, 255],
-		[128, 142],
-		[112, 128]
-	],
-	"binarizer_ground_morphology_kernel_size": 7
+  "binarizer_ground_color_space": "RGB",
+  "binarizer_ground_thresholds": [
+    [160, 255],
+    [160, 255],
+    [160, 255]
+  ],
+  "binarizer_ground_morphology_kernel_size": 3,
+  "binarizer_ground_morphology_iters": 0
 ```
 
 ```json
-	"binarizer_rock_thresholds": [
-		[ 75, 150],
-		[145, 170],
-		[ 20,  80]
-	],
-	"binarizer_rock_morphology_kernel_size": 5
+  "binarizer_rock_color_space": "YUV",
+  "binarizer_rock_thresholds": [
+      [  0, 255],
+      [128, 255],
+      [ 20,  80]
+  ],
+  "binarizer_rock_morphology_kernel_size": 5,
+  "binarizer_rock_morphology_iters": 2
 ```
 
 Here is one sample output for ground & obstacle segmentation:
@@ -257,10 +282,122 @@ One sample video output can be reached through this link [Real-Time Mapping Demo
 
 #### 1. Describe how you implemented the perception_step() and decision_step() functions.
 
+Here is my implementation of perception_step(). It's a simple adaption of process_frame():
 
+```python
+def perception_step(Rover):
+    # Perform perception steps to update Rover()
+    # NOTE: camera image is coming to you in Rover.img
+    # 1) Define source and destination points for perspective transform
+    # 2) Apply perspective transform
+    # 3) Apply color threshold to identify navigable terrain/obstacles/rock samples
+    # 4) Update Rover.vision_image (this will be displayed on left side of screen)
+        # Example: Rover.vision_image[:,:,0] = obstacle color-thresholded binary image
+        #          Rover.vision_image[:,:,1] = rock_sample color-thresholded binary image
+        #          Rover.vision_image[:,:,2] = navigable terrain color-thresholded binary image
 
-#### 2. Launching in autonomous mode your rover can navigate and map autonomously.  Explain your results and how you might improve them in your writeup.  
+    # 5) Convert map image pixel values to rover-centric coords
+    # 6) Convert rover-centric pixel values to world coordinates
+    # 7) Update Rover worldmap (to be displayed on right side of screen)
+        # Example: Rover.worldmap[obstacle_y_world, obstacle_x_world, 0] += 1
+        #          Rover.worldmap[rock_y_world, rock_x_world, 1] += 1
+        #          Rover.worldmap[navigable_y_world, navigable_x_world, 2] += 1
+
+    # 8) Convert rover-centric pixel positions to polar coordinates
+    # Update Rover pixel distances and angles
+        # Rover.nav_dists = rover_centric_pixel_distances
+        # Rover.nav_angles = rover_centric_angles
+
+    # Format input:
+    frame = cv2.cvtColor(Rover.img, cv2.COLOR_RGB2BGR)
+
+    # Rover state:
+    (x_trans, y_trans) = Rover.pos
+    yaw = Rover.yaw
+
+    # Segmented ground:
+    ground = transformer.transform(
+        binarizer_ground.transform(frame)
+    )
+    # Segmented obstacle:
+    obstacle = (ground == 0).astype(
+        np.int
+    )
+    obstacle[rover_states.rover_view == 0] = 0
+    # Segmented rock:
+    rock = transformer.transform(
+        binarizer_rock.transform(frame)
+    )
+
+    # Initialize coordinate transform:
+    yaw = np.pi / 180.0 * yaw
+    scales = (conf.scale, conf.scale)
+    translations= (x_trans, y_trans)
+
+    # Extract coordinates:
+    coords = {
+        "ground": {},
+        "obstacle": {},
+        "rock": {}
+    }
+    for obj_name, obj_in_pixel in zip(
+        ("ground", "obstacle", "rock"),
+        (ground, obstacle, rock),
+    ):
+        coords[obj_name]["rover"] = rover_coord_mapper.transform(obj_in_pixel)
+        coords[obj_name]["polar"] = rover_polar_mapper.transform(
+            coords[obj_name]["rover"]
+        )
+        coords[obj_name]["world"] = world_coord_mapper.transform(
+            coords[obj_name]["rover"],
+            yaw,
+            scales,
+            translations
+        )
+
+    # Bird eye view:
+    Rover.vision_image[:,:,0] = 255 * obstacle
+    if rock.any():
+        Rover.vision_image[:,:,1] = 255 * rock
+    else:
+        Rover.vision_image[:,:,1] = 0
+    Rover.vision_image[:,:,2] = 255 * ground
+
+    # World map inpainting:
+    (obstacle_x_world, obstacle_y_world) = coords["obstacle"]["world"]
+    Rover.worldmap[obstacle_y_world, obstacle_x_world, 0] += 10
+    if rock.any():
+        (rock_x_world, rock_y_world) = coords["rock"]["world"]
+        Rover.worldmap[rock_y_world, rock_x_world, 1] = 255
+    (ground_x_world, ground_y_world) = coords["ground"]["world"]
+    Rover.worldmap[ground_y_world, ground_x_world, 2] += 10
+
+    # Update navigation angle:
+    Rover.nav_angles = coords["ground"]["polar"][1]
+```
+
+In this project I use the default implementation of decision_step(). After I finished the courses from UPenn on motion planning I'll come back and polish this default decision function.
+
+#### 2. Launching in autonomous mode your rover can navigate and map autonomously.  Explain your results and how you might improve them.  
 
 **Note: running the simulator with different choices of resolution and graphics quality may produce different results, particularly on different machines!  Set simulator settings (resolution and graphics quality set on launch) and frames per second (FPS output to terminal by `drive_rover.py`) exactly as follows to make sure the procedure is reproducible.**
 
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
+My settings for simulator are as follows:
+
+| Params        | Value         |
+| ------------- |:-------------:|
+| Resolution    | 1024 by 768   |
+| Quality       | Good          |
+
+I attained about 70% accuracy on average and most of the rock samples can be successfully identified.
+
+One sample output gif of autonomous navigation can be reached here [Autonomous Navigation Demo](output_videos)
+
+![Autonomous Navigation](output_videos/navigation_demo.gif)
+
+I think I can further improve my solution in the following aspects:
+
+1. The parameters for perspective transform could be refined through more precise calibration. I began with my own four-point pairs and suffered from steadily low accuracy(around 59%).
+The fidelity has improved significantly after I switched to the parameters from courseware tutorial.
+2. Color-space filtering could only provide coarse segmentation and advanced method like FCN could be tried.
+3. Motion planning algorithm should be used for more efficient decision function implementation.

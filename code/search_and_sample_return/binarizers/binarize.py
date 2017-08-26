@@ -14,43 +14,64 @@ class Binarizer(TransformerMixin):
     """
     def __init__(
         self,
+        color_space,
         thresholds,
-        morphology_kernel_size
+        morphology_kernel_size,
+        morphology_iters = 0
     ):
+        if color_space == "RGB":
+            self.conversion = cv2.COLOR_BGR2RGB
+        else:
+            self.conversion = cv2.COLOR_BGR2YUV
+
         # Thresholds for image binarization:
         self.thresholds = thresholds
+
         self.morphology_kernel = np.ones(
             (morphology_kernel_size,morphology_kernel_size),
             np.uint8
         )
+        self.morphology_iters = morphology_iters
 
     def transform(self, X):
         """ Binarize input image
         """
         # Convert to HSV:
-        YUV = cv2.cvtColor(
-            X, cv2.COLOR_BGR2YUV
+        converted = cv2.cvtColor(
+            X, self.conversion
         )
 
         # Get mask for each channel component:
-        masks = [get_channel_mask(channel_component, threshold) for (channel_component, threshold) in zip(cv2.split(YUV), self.thresholds)]
+        masks = [get_channel_mask(channel_component, threshold) for (channel_component, threshold) in zip(cv2.split(converted), self.thresholds)]
 
         # Generate final mask:
         mask = masks[0] & masks[1] & masks[2]
 
         # morphological filtering:
-        mask = cv2.morphologyEx(
-            mask,
-            cv2.MORPH_CLOSE,
-            self.morphology_kernel,
-            iterations=1
-        )
-        mask = cv2.morphologyEx(
-            mask,
-            cv2.MORPH_OPEN,
-            self.morphology_kernel,
-            iterations=2
-        )
+        if self.morphology_iters > 0:
+            for _ in range(self.morphology_iters):
+                mask = cv2.morphologyEx(
+                    mask,
+                    cv2.MORPH_CLOSE,
+                    self.morphology_kernel
+                )
+                mask = cv2.morphologyEx(
+                    mask,
+                    cv2.MORPH_OPEN,
+                    self.morphology_kernel
+                )
+        elif self.morphology_iters < 0:
+            for _ in range(-self.morphology_iters):
+                mask = cv2.morphologyEx(
+                    mask,
+                    cv2.MORPH_OPEN,
+                    self.morphology_kernel
+                )
+                mask = cv2.morphologyEx(
+                    mask,
+                    cv2.MORPH_CLOSE,
+                    self.morphology_kernel
+                )
 
         return mask
 
@@ -74,12 +95,13 @@ if __name__ == "__main__":
     args = vars(parser.parse_args())
 
     binarizer = Binarizer(
+        "RGB",
         (
             (160, 255),
-            (128, 142),
-            (112, 128)
+            (160, 142),
+            (160, 128)
         ),
-        7
+        3
     )
 
     binary = binarizer.transform(
